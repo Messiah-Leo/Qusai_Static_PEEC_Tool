@@ -1,0 +1,7 @@
+type = 0
+amplitude = 1.0
+rise_time = 12e-12
+bit_rate = 20e9
+prbs_N = 7
+total_time = 5e-11
+samples_per_bit = 60

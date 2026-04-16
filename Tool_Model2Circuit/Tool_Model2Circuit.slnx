@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="Tool_Model2Circuit/Tool_Model2Circuit.vcxproj" />
+</Solution>

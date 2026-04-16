@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="Quasi_Static_Solver/Quasi_Static_Solver.vcxproj" Id="1ae164bc-4122-4101-95f3-b0f3e2e20633" />
+</Solution>

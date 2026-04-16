@@ -1,0 +1,4 @@
+MAX_ERROR       0.1
+MAX_FREQ 	10e9
+MAX_NODE 	100	
+$End_Def
