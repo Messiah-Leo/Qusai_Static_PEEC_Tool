@@ -1,5 +1,6 @@
 #include <cstring>
 #include <direct.h>
+#include <filesystem>
 #include <iostream>
 #include <string>
 
@@ -24,23 +25,17 @@ void Read_Path() {
 	}
 	else {
 		std::cerr << "Fail to get Current Path" << std::endl;
-		system("pause");
-		exit;
-	}
-	// current path string
-	std::string curr(buffer);
-
-	//find parent directory
-	std::string parent = curr;
-
-	//打包的时候注释这一段，避免路径问题
-	std::size_t pos = parent.find_last_of("\\");
-	if (pos != std::string::npos) {
-		parent = parent.substr(0, pos);
+		return;
 	}
 
-	PATH = parent + "\\Data\\";
-	FUSION_SET_FILE = PATH + "Fusion_Set.txt";
+	const std::filesystem::path cwd(buffer);
+	const std::filesystem::path packaged_data = cwd / "Data";
+	const std::filesystem::path source_layout_data = cwd.parent_path() / "Data";
+	const std::filesystem::path data_root =
+		std::filesystem::exists(packaged_data) ? packaged_data : source_layout_data;
+
+	PATH = data_root.string() + "\\";
+	FUSION_SET_FILE = PATH + "MOR_SET.txt";
 }
 
 void Read_Setting()
@@ -51,15 +46,19 @@ void Read_Setting()
 		return;
 	}
 
-	std::string temp_char;
-	long double set;
 	while (true) {
 		std::string line;
 		if (!std::getline(fin, line)) break;
 		std::istringstream iss(line);
-		iss >> temp_char >> set;
+		std::string temp_char;
+		std::string value;
+		iss >> temp_char >> value;
 
 		if (temp_char == "$End_Def") break;
+		if (temp_char.empty() || temp_char[0] == '#' || value.empty()) continue;
+		if (temp_char == "MOR_METHOD") continue;
+
+		const long double set = std::stold(value);
 
 		if (temp_char == "MAX_ERROR") {
 			MAX_ERROR = set;
@@ -68,11 +67,8 @@ void Read_Setting()
 			MAX_FREQ = set;
 		}
 		else if (temp_char == "MAX_NODE") {
-			MAX_NODE = set;
+			MAX_NODE = static_cast<int>(set);
 		}
-		// 其他case可按需添加
 	}
 	fin.close();
-	//test
-	//std::cout << "SETTING file read complete." << std::endl;	
 }

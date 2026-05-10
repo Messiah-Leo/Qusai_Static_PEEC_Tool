@@ -1,5 +1,48 @@
 #include "Mod_Cir_Fusion_Main.h"
 
+#include <fstream>
+#include <iomanip>
+#include <string>
+
+namespace {
+
+int Circuit_Element_Count(int node_count, int branch_count)
+{
+	return node_count + branch_count;
+}
+
+void Write_DPEC_Log(
+	const std::string& output_path,
+	double reduction_time_ms,
+	int nodes_before,
+	int nodes_after,
+	int branches_before,
+	int branches_after,
+	int reduction_steps)
+{
+	std::ofstream output(output_path + "DPEC.log");
+	if (!output.is_open())
+	{
+		std::cerr << "Failed to write DPEC.log: " << output_path << "DPEC.log" << std::endl;
+		return;
+	}
+
+	output << "report=DPEC reduction" << std::endl;
+	output << "reduction_time_ms=" << std::fixed << std::setprecision(1) << reduction_time_ms << std::endl;
+	output << "nodes_before=" << nodes_before << std::endl;
+	output << "nodes_after=" << nodes_after << std::endl;
+	output << "branches_before=" << branches_before << std::endl;
+	output << "branches_after=" << branches_after << std::endl;
+	output << "circuit_elements_definition=nodes + branches" << std::endl;
+	output << "circuit_elements_before=" << Circuit_Element_Count(nodes_before, branches_before) << std::endl;
+	output << "circuit_elements_after=" << Circuit_Element_Count(nodes_after, branches_after) << std::endl;
+	output << "reduction_steps=" << reduction_steps << std::endl;
+
+	std::cout << "Reduction report: " << output_path << "DPEC.log" << std::endl;
+}
+
+} // namespace
+
 void Circuit_Funsing_Main()
 {
 	// ------------------------------------------------------------
@@ -17,6 +60,8 @@ void Circuit_Funsing_Main()
 	W = 2.0 * PI * MAX_FREQ;
 
 	Read_PEEC_Model(PATH);
+	const int Original_Circuit_B = static_cast<int>(LL_00.size());
+	const int Original_Circuit_N = static_cast<int>(PP_00.size());
 
 	std::cout << "============================================" << std::endl;
 	std::cout << "   Circuit fusion start!                    " << std::endl;
@@ -24,8 +69,8 @@ void Circuit_Funsing_Main()
 	// ------------------------------------------------------------
 	// Initialize circuit data structures
 	// ------------------------------------------------------------
-	C_N_Circuit_B = LL_00.size();
-	C_N_Circuit_N = PP_00.size();
+	C_N_Circuit_B = static_cast<int>(LL_00.size());
+	C_N_Circuit_N = static_cast<int>(PP_00.size());
 	Ini_Data_Structure(
 		C_N_Circuit_B,
 		C_N_Circuit_N,
@@ -35,6 +80,8 @@ void Circuit_Funsing_Main()
 		C_N2B,
 		W
 	);
+
+	const double Reduction_Time_S = Get_Time();
 
 	// ------------------------------------------------------------
 	// Find first insignificant node
@@ -65,14 +112,13 @@ void Circuit_Funsing_Main()
 		// --------------------------------------------------------
 		Combine_Branch_Circuits();
 		Combine_Node_Circuits();
-
-		//system("pause");
 		// --------------------------------------------------------
 		// Find next insignificant node
 		// --------------------------------------------------------
 		Find_Insig_Node(Node_Num, Node_ER);
 	}
 
+	const double Reduction_Time_E = Get_Time();
 
 	// ------------------------------------------------------------
 	// Final fused circuit model
@@ -87,7 +133,15 @@ void Circuit_Funsing_Main()
 		N_PORT
 	);
 
-	Save_PEEC_Model(PATH);
+	Save_PEEC_Model(PATH + "output\\");
+	Write_DPEC_Log(
+		PATH + "output\\",
+		Reduction_Time_E - Reduction_Time_S,
+		Original_Circuit_N,
+		C_N_Circuit_N,
+		Original_Circuit_B,
+		C_N_Circuit_B,
+		COUNT);
 
 	std::cout << "Finished fusion" << std::endl;
 

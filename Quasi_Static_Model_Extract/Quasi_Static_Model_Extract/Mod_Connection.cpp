@@ -1,4 +1,4 @@
-#include"Mod_Connection.h"
+﻿#include"Mod_Connection.h"
 
 void Creat_CNN();
 void Creat_PEC_C();
@@ -20,7 +20,7 @@ std::vector<std::vector<int>> CN_TEMP, CN_P_TEMP;
 void Creat_Connection()
 {
 	double TIME_S, TIME_E;
-	std::cout << "P2: Setting up connection.." << std::endl;
+	Console::Section("P2", "Build Connections");
 	TIME_S = Get_Time();
 
 	T_PEC.resize(T_MS_N);
@@ -39,9 +39,12 @@ void Creat_Connection()
 
 	TIME_E = Get_Time();
 	Time_Diff(TIME_S, TIME_E);
-	std::cout << "TOTAL MESH:" << N_S << "  PEC MESH:" << PEC_N << "  LINE MESH:" << L_N << std::endl;
-	std::cout << "TOTAL C:" << CN_N << "  PEC C:" << C_PEC_N << std::endl;
-	std::cout << std::endl;
+	Console::Detail("Total mesh", N_S);
+	Console::Detail("PEC mesh", PEC_N);
+	Console::Detail("Line mesh", L_N);
+	Console::Detail("Total connections", CN_N);
+	Console::Detail("PEC connections", C_PEC_N);
+	Console::Blank();
 }
 
 void Creat_CNN()
@@ -222,6 +225,9 @@ void Creat_Port()
 		PORT_DATA[i].N[0] = Port_Node(PT[Port_Mesh[i].P[0]]);
 		PORT_DATA[i].N[1] = Port_Node(PT[Port_Mesh[i].P[1]]);
 		PORT_DATA[i].Zin = T_MS[i].M_TYP;
-		std::cout << "Port" << i + 1 << ": " << PORT_DATA[i].N[0] << " " << PORT_DATA[i].N[1] << "  Z:" << PORT_DATA[i].Zin << std::endl;
+		Console::Info(
+			"Port " + std::to_string(i + 1) +
+			" -> nodes(" + std::to_string(PORT_DATA[i].N[0]) + ", " + std::to_string(PORT_DATA[i].N[1]) +
+			"), Zin=" + std::to_string(PORT_DATA[i].Zin));
 	}
 }

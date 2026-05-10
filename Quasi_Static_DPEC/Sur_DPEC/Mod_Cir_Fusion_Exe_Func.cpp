@@ -1,5 +1,8 @@
 #include "Mod_Cir_Fusion_Exe_func.h"
+#include <cerrno>
+#include <direct.h>
 #include <fstream>
+#include <sstream>
 float BIAS_W = 1.01;
 
 void Ini_Data_Structure(
@@ -544,7 +547,7 @@ void Combine_Branch_Circuits()
 						M_RR_O[J][k] = -M_RR_O[J][k];
 						M_RR_O[k][J] = -M_RR_O[k][J];
 					}
-					std::cout << M_RR_O[I][J] << std::endl;
+					//std::cout << M_RR_O[I][J] << std::endl;
 					// Flip sign of RO matrix row
 					for (int k = 0; k < N_O; ++k)
 					{
@@ -846,21 +849,72 @@ void Fused_Circuit_Model(
 	N_NODE = N_N;
 }
 
+namespace {
+
+	std::string With_Trailing_Slash(std::string path)
+	{
+		if (!path.empty() && path.back() != '\\' && path.back() != '/') {
+			path += "\\";
+		}
+		return path;
+	}
+
+	std::string Resolve_PEEC_Model_Path(const std::string& file_path)
+	{
+		const std::string root_path = With_Trailing_Slash(file_path);
+		return root_path + "output\\";
+	}
+
+
+	bool Ensure_Directory(const std::string& path)
+	{
+		std::string dir = With_Trailing_Slash(path);
+		while (!dir.empty() && (dir.back() == '\\' || dir.back() == '/')) {
+			dir.pop_back();
+		}
+
+		errno = 0;
+		if (_mkdir(dir.c_str()) != 0 && errno != EEXIST) {
+			std::cerr << "Cannot create output directory: " << dir << std::endl;
+			return false;
+		}
+		return true;
+	}
+
+	bool Read_Double_Matrix_Auto(
+		const std::string& path,
+		const std::string& stem,
+		std::vector<std::vector<double>>& matrix
+	)
+	{
+		const std::string binary_file = path + stem + ".bin";
+		if (File_Exists(binary_file)) {
+			return Read_Matrix_From_Binary_File(binary_file, matrix);
+		}
+
+		return Read_Matrix_From_File(path + stem + ".txt", matrix);
+	}
+
+} // namespace
+
 bool Read_PEEC_Model(std::string File_Path)
 {
-	if (!Read_Matrix_From_File(File_Path + "LL_OO.txt", LL_00)) return false;
-	if (!Read_Matrix_From_File(File_Path + "PP_OO.txt", PP_00)) return false;
-	if (!Read_Matrix_From_File(File_Path + "B2N.txt", C_B2N)) return false;
+	const std::string model_path = Resolve_PEEC_Model_Path(File_Path);
+	std::cout << "PEEC model input path: " << model_path << std::endl;
+
+	if (!Read_Double_Matrix_Auto(model_path, "LL_OO", LL_00)) return false;
+	if (!Read_Double_Matrix_Auto(model_path, "PP_OO", PP_00)) return false;
+	if (!Read_Matrix_From_File(model_path + "B2N.txt", C_B2N)) return false;
 
 	for (int i = 0; i < C_B2N.size(); i++)
 	{
-		C_B2N[i][0]++; // 转换为0-based索引
-		C_B2N[i][1]++; // 转换为0-based索引
+		C_B2N[i][0]++; // 转换为内部1-based索引
+		C_B2N[i][1]++; // 转换为内部1-based索引
 	}
 
-	std::ifstream fin(File_Path + "PORT.txt");
+	std::ifstream fin(model_path + "PORT.txt");
 	if (!fin.is_open()) {
-		std::cerr << "无法打开文件: " << File_Path + "PORT.txt" << std::endl;
+		std::cerr << "无法打开文件: " << model_path + "PORT.txt" << std::endl;
 		return false;
 	}
 
@@ -902,16 +956,21 @@ bool Read_PEEC_Model(std::string File_Path)
 
 bool Save_PEEC_Model(std::string File_Path)
 {
+	const std::string output_path = With_Trailing_Slash(File_Path);
+	if (!Ensure_Directory(output_path)) return false;
+
 	for (int i = 0; i < C_B2N.size(); i++)
 	{
-		C_B2N[i][0]--; // 转换为0-based索引
-		C_B2N[i][1]--; // 转换为0-based索引
+		C_B2N[i][0]--; // 转换为文件0-based索引
+		C_B2N[i][1]--; // 转换为文件0-based索引
 	}
-	if (!Write_Matrix_To_File(File_Path + "LL_OO.txt", LL_00)) return false;
-	if (!Write_Matrix_To_File(File_Path + "PP_OO.txt", PP_00)) return false;
-	if (!Write_Matrix_To_File(File_Path + "B2N.txt", C_B2N)) return false;
 
-	std::ofstream fout(File_Path + "PORT.txt");
+	if (!Write_Matrix_To_Binary_File(output_path + "LL_OO.bin", LL_00)) return false;
+	if (!Write_Matrix_To_Binary_File(output_path + "PP_OO.bin", PP_00)) return false;
+
+	if (!Write_Matrix_To_File(output_path + "B2N.txt", C_B2N)) return false;
+
+	std::ofstream fout(output_path + "PORT.txt");
 	fout << N_PORT << std::endl;
 	for (int i = 0; i < N_PORT; ++i)
 	{

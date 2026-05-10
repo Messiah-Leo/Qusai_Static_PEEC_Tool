@@ -1,4 +1,4 @@
-#include "Mod_Solver_Time.h"
+﻿#include "Mod_Solver_Time.h"
 
 int Source_Sz = 1;
 int N_TPT;
@@ -53,7 +53,7 @@ std::vector<int> Generate_PRBS_Sequence(int order, int length) {
 	return seq;
 }
 
-//��ȡ�����ļ�
+//读取配置文件
 bool Read_Source_Config(const std::string& configPath, SourceConfig& config) {
 	std::ifstream fin(configPath);
 	if (!fin.is_open()) return false;
@@ -63,7 +63,7 @@ bool Read_Source_Config(const std::string& configPath, SourceConfig& config) {
 	while (std::getline(fin, line)) {
 		if (line.empty()) continue;
 		std::stringstream ss(line);
-		ss >> key >> equal; 
+		ss >> key >> equal;
 
 		if (key == "type") ss >> (int&)config.type;
 		else if (key == "amplitude") ss >> config.amplitude;
@@ -79,7 +79,7 @@ bool Read_Source_Config(const std::string& configPath, SourceConfig& config) {
 }
 
 bool Generate_Source_File(const SourceConfig& config, const std::string& outputPath) {
-	std::cout << "Generating source waveform to file..." << std::endl;
+	Console::Info("Generating source waveform...");
 
 	double bit_duration = 1.0 / config.bit_rate;
 	double t_step_local = bit_duration / (double)config.samples_per_bit;
@@ -152,7 +152,7 @@ bool Read_Signal_File(std::string File_Path) {
 }
 
 void Ini_Element() {
-	std::cout << "Ini_Elemnet..." << std::endl;
+	Console::Info("Initializing solver elements...");
 
 	PEC_N = PP.size();
 	C_PEC_N = LL.size();
@@ -202,13 +202,13 @@ void Ini_Element() {
 }
 
 void Calc_PP_AET() {
-	std::cout << "Calculating PP_AET..." << std::endl;
+	Console::Info("Calculating PP_AET...");
 	PP_AET.assign(NODE_N, std::vector<double>(C_PEC_N + N_PORT, 0.0));
 	PP_AET = Product_M(PP, A_ET);
 }
 
 void Build_CP_M() {
-	std::cout << "Building System Matrices (A_M, B_M)..." << std::endl;
+	Console::Info("Building system matrices...");
 
 	std::vector<std::vector<double>> E_TEMP(M_SZ, std::vector<double>(M_SZ, 0.0));
 	std::vector<std::vector<double>> A_TEMP(M_SZ, std::vector<double>(M_SZ, 0.0));
@@ -257,7 +257,7 @@ void Build_CP_M() {
 	}*/
 
 	A_M.assign(M_SZ, std::vector<double>(M_SZ, 0.0));
-	A_M = Product_M(E_HA, A_TEMP); 
+	A_M = Product_M(E_HA, A_TEMP);
 
 	B_M.assign(M_SZ, std::vector<double>(Source_Sz, 0.0));
 	B_M = Product_M(E_HA, B_TEMP);
@@ -306,54 +306,57 @@ void Update_VI(const std::vector<std::vector<double>>& S_in) {
 };
 
 void Time_Solver() {
-	std::cout << "Starting Time Domain Solver..." << std::endl;
+	std::cout << "Start solving..." << std::endl;
 
-	if (!Read_PEEC_Model(MAP_PATH)) return;
 	Ini_Element();
-
-	SourceConfig config;
-	std::string config_txt = SOURCE_PATH + "SourceConfig.txt";
-	std::string source_txt = SOURCE_PATH + "Source.txt";
-
-	if (Read_Source_Config(config_txt, config)) {
-		Generate_Source_File(config, source_txt);
-	}
-	else {
-		std::cout << "Config file not found, trying to use existing Source.txt" << std::endl;
-	}
-
-	if (!Read_Signal_File(source_txt)) {
-		std::cerr << "Error: No source data available." << std::endl;
-		return;
-	}
-
-	Calc_PP_AET();
+	Read_PEEC_Model(MAP_PATH);
 	Build_CP_M();
 
-	std::string out_file = MAP_PATH + "output_voltage.txt";
-	std::ofstream outFile(out_file);
+
+	// 1. 准备输出文件
+	std::ofstream outFile(PATH + "output\\full_states.csv");
 	if (!outFile.is_open()) {
-		std::cerr << "Error: Could not open output file: " << out_file << std::endl;
+		std::cerr << "Error: Could not open output file!" << std::endl;
 		return;
 	}
 
-	outFile << "Time";
-	for (int k = 0; k < N_PORT; ++k) {
-		outFile << ", Port_" << k + 1 << "_Voltage";
+	// 2. 写入表头 (Header)
+	outFile << "Time,Source";
+	// 写入 VI 的表头: VI_0, VI_1, ...
+	for (int m = 0; m < M_SZ; ++m) {
+		outFile << ",VI_" << m;
 	}
-	outFile << std::endl;
+	// 写入 D_VI 的表头: DVI_0, DVI_1, ...
+	for (int m = 0; m < M_SZ; ++m) {
+		outFile << ",DVI_" << m;
+	}
+	outFile << "\n"; // 使用 \n 代替 std::endl 提高大规模写入效率
 
-	std::cout << "Solving steps..." << std::endl;
+	// 3. 时间步循环
 	for (int i = 1; i <= N_TPT; ++i) {
 		Update_VI(x_t[i]);
 
-		outFile << i * T_STEP << ", "
-			<< x_t[i][0][0] << ", "
-			<< VI[PORT_DATA[0].N[0]][0] - VI[PORT_DATA[0].N[1]][0] << ", "
-			<< VI[PORT_DATA[1].N[0]][0] - VI[PORT_DATA[1].N[1]][0] << std::endl;
+		// 写入当前时间点和激励源
+		outFile << i * T_STEP << "," << x_t[i][0][0];
+
+		// 写入所有的 VI 状态 (假设 Source_Sz = 1)
+		for (int m = 0; m < M_SZ; ++m) {
+			outFile << "," << VI[m][0];
+		}
+
+		// 写入所有的 D_VI 状态
+		for (int m = 0; m < M_SZ; ++m) {
+			outFile << "," << D_VI[m][0];
+		}
+
+		outFile << "\n";
+
+		// 每 100 步输出一次进度，避免界面卡死
+		if (i % 100 == 0) {
+			std::cout << "Progress: " << i << "/" << N_TPT << " steps calculated." << std::endl;
+		}
 	}
-	std::cout << std::endl;
 
 	outFile.close();
-	std::cout << "Solver Finished. Results saved to " << out_file << std::endl;
+	std::cout << "Finish solving. Data saved to full_states.csv" << std::endl;
 }

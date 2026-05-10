@@ -3,5 +3,6 @@ FS              1e9
 FE 	        100e9
 N_FP 	        500	
 DIM	        1e3
-ER       	4.4
+ER       	1
+SAVE_TXT        1
 $End_Def

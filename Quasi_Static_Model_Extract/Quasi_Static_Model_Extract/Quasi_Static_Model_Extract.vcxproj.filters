@@ -54,6 +54,9 @@
     <ClInclude Include="Mod_Connection.h">
       <Filter>头文件\Connection</Filter>
     </ClInclude>
+    <ClInclude Include="Mod_Connect_Function.h">
+      <Filter>头文件\Connection</Filter>
+    </ClInclude>
     <ClInclude Include="Mod_Element_Build.h">
       <Filter>头文件\Integral</Filter>
     </ClInclude>
@@ -73,9 +76,6 @@
     </ClCompile>
     <ClCompile Include="Mod_Read_File.cpp">
       <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="Mod_Connect_Function.h">
-      <Filter>头文件\Connection</Filter>
     </ClCompile>
     <ClCompile Include="Mod_Common_Data.cpp">
       <Filter>源文件\Base</Filter>
@@ -107,5 +107,8 @@
     <ClCompile Include="Main_Model_Extract.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Directory.Build.props" />
   </ItemGroup>
 </Project>

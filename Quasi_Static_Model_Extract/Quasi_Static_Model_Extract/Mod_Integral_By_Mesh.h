@@ -14,6 +14,8 @@
 #include "Mod_Singular_Treatment.h"
 #include "Mod_Type.h"
 
+int N_Gaussin_P(double R, double Lamda);
+
 Ele_Mesh_Int Ele_Cal(int IND_A, int IND_B);
 Ele_Mesh_Int Trans_Ele(int IND_A, int IND_B);
 

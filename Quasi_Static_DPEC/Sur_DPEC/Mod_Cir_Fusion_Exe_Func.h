@@ -5,9 +5,13 @@
 extern float BIAS_W;
 
 #include <charconv>
+#include <cstdint>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <limits>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "Mod_Cir_Fusion_data.h"
@@ -65,7 +69,6 @@ bool Read_Matrix_From_File(
 	if (!file.is_open()) {
 		std::cerr << "无法打开文件: " << filename << std::endl;
 		system("pause");
-		exit;
 		return false;
 	}
 
@@ -75,7 +78,6 @@ bool Read_Matrix_From_File(
 	if (rows <= 0 || cols <= 0) {
 		std::cerr << "无效的矩阵尺寸: " << rows << "x" << cols << std::endl;
 		system("pause");
-		exit;
 		return false;
 	}
 
@@ -98,7 +100,6 @@ bool Read_Matrix_From_File(
 					<< " 在第 " << i + 1 << " 行，第 " << j + 1 << " 列"
 					<< std::endl;
 				system("pause");
-				exit;
 				return false;
 			}
 
@@ -134,7 +135,6 @@ bool Write_Matrix_To_File(
 	if (matrix.empty()) {
 		std::cerr << "矩阵为空，无法写入文件" << std::endl;
 		system("pause");
-		exit;
 		return false;
 	}
 
@@ -148,7 +148,6 @@ bool Write_Matrix_To_File(
 				<< matrix[i].size() << "列，但第一行有"
 				<< cols << "列" << std::endl;
 			system("pause");
-			exit;
 			return false;
 		}
 	}
@@ -157,7 +156,6 @@ bool Write_Matrix_To_File(
 	if (!file.is_open()) {
 		std::cerr << "无法打开文件用于写入: " << filename << std::endl;
 		system("pause");
-		exit;
 		return false;
 	}
 
@@ -185,6 +183,126 @@ bool Write_Matrix_To_File(
 	std::cout << "矩阵已写入文件: " << filename << std::endl;
 	std::cout << "矩阵尺寸: " << rows << "x" << cols << std::endl;
 
+	return true;
+}
+
+
+inline bool File_Exists(const std::string& filename)
+{
+	std::ifstream file(filename, std::ios::binary);
+	return file.good();
+}
+
+template<typename T>
+bool Read_Matrix_From_Binary_File(
+	const std::string& filename,
+	std::vector<std::vector<T>>& matrix
+)
+{
+	static_assert(std::is_trivially_copyable<T>::value, "Binary matrix input requires trivially copyable element types.");
+
+	std::ifstream file(filename, std::ios::binary);
+	if (!file.is_open()) {
+		std::cerr << "Cannot open binary matrix file: " << filename << std::endl;
+		return false;
+	}
+
+	char magic[8] = {};
+	file.read(magic, sizeof(magic));
+	const char expected[8] = { 'P', 'E', 'E', 'C', 'M', 'A', 'T', '1' };
+	for (int i = 0; i < 8; ++i) {
+		if (magic[i] != expected[i]) {
+			std::cerr << "Invalid binary matrix header: " << filename << std::endl;
+			return false;
+		}
+	}
+
+	std::uint64_t row_count = 0;
+	std::uint64_t col_count = 0;
+	file.read(reinterpret_cast<char*>(&row_count), sizeof(row_count));
+	file.read(reinterpret_cast<char*>(&col_count), sizeof(col_count));
+
+	if (!file.good() || row_count == 0 || col_count == 0 ||
+		row_count > static_cast<std::uint64_t>(std::numeric_limits<int>::max()) ||
+		col_count > static_cast<std::uint64_t>(std::numeric_limits<int>::max())) {
+		std::cerr << "Invalid binary matrix shape: " << row_count << "x" << col_count << std::endl;
+		return false;
+	}
+
+	const std::size_t rows = static_cast<std::size_t>(row_count);
+	const std::size_t cols = static_cast<std::size_t>(col_count);
+	matrix.assign(rows, std::vector<T>(cols));
+
+	for (std::size_t i = 0; i < rows; ++i) {
+		file.read(
+			reinterpret_cast<char*>(matrix[i].data()),
+			static_cast<std::streamsize>(cols * sizeof(T))
+		);
+		if (!file.good()) {
+			std::cerr << "Failed to read binary matrix data: " << filename << std::endl;
+			return false;
+		}
+	}
+
+	std::cout << "Binary matrix loaded: " << filename << std::endl;
+	std::cout << "Matrix shape: " << rows << "x" << cols << std::endl;
+	return true;
+}
+
+template<typename T>
+bool Write_Matrix_To_Binary_File(
+	const std::string& filename,
+	const std::vector<std::vector<T>>& matrix
+)
+{
+	static_assert(std::is_trivially_copyable<T>::value, "Binary matrix output requires trivially copyable element types.");
+
+	if (matrix.empty()) {
+		std::cerr << "Matrix is empty and cannot be written: " << filename << std::endl;
+		return false;
+	}
+
+	const std::size_t rows = matrix.size();
+	const std::size_t cols = matrix[0].size();
+	if (cols == 0) {
+		std::cerr << "Matrix has zero columns and cannot be written: " << filename << std::endl;
+		return false;
+	}
+
+	for (std::size_t i = 1; i < rows; ++i) {
+		if (matrix[i].size() != cols) {
+			std::cerr << "Irregular matrix row " << i << " while writing: " << filename << std::endl;
+			return false;
+		}
+	}
+
+	std::ofstream file(filename, std::ios::binary);
+	if (!file.is_open()) {
+		std::cerr << "Cannot open binary matrix file for writing: " << filename << std::endl;
+		return false;
+	}
+
+	const char magic[8] = { 'P', 'E', 'E', 'C', 'M', 'A', 'T', '1' };
+	const std::uint64_t row_count = static_cast<std::uint64_t>(rows);
+	const std::uint64_t col_count = static_cast<std::uint64_t>(cols);
+	file.write(magic, sizeof(magic));
+	file.write(reinterpret_cast<const char*>(&row_count), sizeof(row_count));
+	file.write(reinterpret_cast<const char*>(&col_count), sizeof(col_count));
+
+	for (std::size_t i = 0; i < rows; ++i) {
+		file.write(
+			reinterpret_cast<const char*>(matrix[i].data()),
+			static_cast<std::streamsize>(cols * sizeof(T))
+		);
+	}
+
+	if (!file.good()) {
+		std::cerr << "Failed to write binary matrix data: " << filename << std::endl;
+		return false;
+	}
+
+	std::cout << "Binary matrix written: " << filename << std::endl;
+	std::cout << "Matrix shape: " << rows << "x" << cols << std::endl;
 	return true;
 }
 

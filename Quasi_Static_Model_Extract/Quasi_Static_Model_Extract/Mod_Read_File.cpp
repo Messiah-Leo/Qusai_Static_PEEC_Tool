@@ -1,10 +1,10 @@
-#include"Mod_Read_File.h"
+ï»¿#include"Mod_Read_File.h"
 
-// ¶ÁÈ¡ËùÓĞÊäÈëÎÄ¼şµÄ×ÜÈë¿Ú
+// è¯»å–æ‰€æœ‰è¾“å…¥æ–‡ä»¶çš„æ€»å…¥å£
 void Read_File()
 {
 	int TIME_S, TIME_E;
-	std::cout << "P1: Reading Mesh..." << std::endl;
+	Console::Section("P1", "Read Input Files");
 	TIME_S = Get_Time();
 	Read_Path();
 	Read_Setting();
@@ -14,15 +14,14 @@ void Read_File()
 	Time_Diff(TIME_S, TIME_E);
 }
 
-// ¶ÁÈ¡Íø¸ñÎÄ¼ş
+// è¯»å–ç½‘æ ¼æ–‡ä»¶
 void Read_Mesh()
 {
 	int i, j, k;
 	std::string line;
 	std::ifstream fin(INPUT_FILE);
 	if (!fin.is_open()) {
-		std::cerr << "Fail to read the input MSH file: " << INPUT_FILE << std::endl;
-		system("pause");
+		Console::Error("Failed to open mesh file: " + INPUT_FILE);
 		exit(EXIT_FAILURE);
 	}
 	double VERSION = 0.0;
@@ -34,14 +33,13 @@ void Read_Mesh()
 			std::getline(fin, line);
 			std::istringstream iss(line);
 			iss >> VERSION >> UN_1 >> UN_2;
-			// ½öÖ§³ÖGmsh°æ±¾2.2
+			// ä»…æ”¯æŒGmshç‰ˆæœ¬2.2
 			if (VERSION != 2.2) {
-				std::cerr << "Only Gmsh version 2.2 is supported." << std::endl;
+				Console::Error("Only Gmsh version 2.2 is supported.");
 				fin.close();
-				system("pause");
 				exit(EXIT_FAILURE);
 			}
-			// Ìø¹ı $EndMeshFormat ĞĞ
+			// è·³è¿‡ $EndMeshFormat è¡Œ
 			std::getline(fin, line);
 		}
 		else if (line.find("$Nodes") != std::string::npos) {
@@ -53,10 +51,10 @@ void Read_Mesh()
 				std::getline(fin, line);
 				std::istringstream iss(line);
 				iss >> PT[i].number >> PT[i].X[0] >> PT[i].X[1] >> PT[i].X[2];
-				PT[i].X = V_Div(DIM, PT[i].X); // µ¥Î»×ª»»¿ÉÔÚ´Ë´¦½øĞĞ
-				PT[i].number--; // ×ª»»Îª0-basedË÷Òı
+				PT[i].X = V_Div(DIM, PT[i].X); // å•ä½è½¬æ¢å¯åœ¨æ­¤å¤„è¿›è¡Œ
+				PT[i].number--; // è½¬æ¢ä¸º0-basedç´¢å¼•
 			}
-			// Ìø¹ı $EndNodes ĞĞ
+			// è·³è¿‡ $EndNodes è¡Œ
 			std::getline(fin, line);
 		}
 		else if (line.find("$Elements") != std::string::npos) {
@@ -71,31 +69,32 @@ void Read_Mesh()
 				int len = TYP_LENGTH[T_MS[i].TYP];
 				for (j = 0; j < len; ++j) {
 					iss >> T_MS[i].P[j];
-					T_MS[i].P[j]--; // ×ª»»Îª0-basedË÷Òı
+					T_MS[i].P[j]--; // è½¬æ¢ä¸º0-basedç´¢å¼•
 				}
 			}
-			// ºË¶Ô¶ÁÈ¡µ½µÄ×îºóÒ»ĞĞÊÇ·ñÎª"$EndElements"
+			// æ ¸å¯¹è¯»å–åˆ°çš„æœ€åä¸€è¡Œæ˜¯å¦ä¸º"$EndElements"
 			std::getline(fin, line);
 			if (line != "$EndElements") {
-				std::cerr << "Fail READING MESH! @END" << std::endl;
+				Console::Error("Mesh parsing failed: missing $EndElements.");
 				fin.close();
-				system("pause");
 				exit(EXIT_FAILURE);
 			}
 		}
 	}
 	fin.close();
+	Console::Detail("Mesh points", N_P);
+	Console::Detail("Raw elements", T_MS_N);
 
 	//test
 	//std::cout << "Mesh reading complete. Total " << N_P << " points and " << N_S << " elements." << std::endl;
 }
 
-// ¶ÁÈ¡ÉèÖÃÎÄ¼ş²¢ÉèÖÃÈ«¾Ö²ÎÊı
+// è¯»å–è®¾ç½®æ–‡ä»¶å¹¶è®¾ç½®å…¨å±€å‚æ•°
 void Read_Setting()
 {
 	std::ifstream fin(SET_FILE);
 	if (!fin.is_open()) {
-		std::cout << "Fail to read the input SETTING file!, Use default Setting." << std::endl;
+		Console::Warn("Setting file not found, using defaults.");
 		return;
 	}
 
@@ -127,27 +126,34 @@ void Read_Setting()
 		else if (temp_char == "DIM") {
 			DIM = set;
 		}
-		// ÆäËûcase¿É°´ĞèÌí¼Ó
+		else if (temp_char == "SAVE_TXT" || temp_char == "SAVE_TEXT" || temp_char == "SAVE_TEXT_MATRIX") {
+			SAVE_TXT = (set != 0.0L) ? 1 : 0;
+		}
+		// å…¶ä»–caseå¯æŒ‰éœ€æ·»åŠ 
 	}
 	fin.close();
-	LAMDA_E = 0.6 * 3.0e8 / 15e8;
+	LAMDA_E = 0.1 * 3.0e8 / FE;
+	Console::Detail("Frequency start", static_cast<double>(FS));
+	Console::Detail("Frequency end", static_cast<double>(FE));
+	Console::Detail("Dimension scale", static_cast<double>(DIM));
+	Console::Detail("Save text matrices", SAVE_TXT ? "yes" : "no");
 	//test
 	//std::cout << "SETTING file read complete." << std::endl;	
 }
 
-// ¶ÁÈ¡½éµç³£ÊıÎÄ¼ş²¢ÉèÖÃÈ«¾Ö²ÎÊı
+// è¯»å–ä»‹ç”µå¸¸æ•°æ–‡ä»¶å¹¶è®¾ç½®å…¨å±€ parameters
 void Read_Dielectric()
 {
 	std::ifstream infile(DIELECTRIC_FILE);
 	if (!infile.is_open()) {
-		std::cout << "Fail to read the input DIELECTRIC file!" << std::endl;
+		Console::Warn("Dielectric file not found.");
 		return;
 	}
 
 	int D_NUM;
 	infile >> D_NUM;
 
-	// Ô¤ÉèÎª (1.0, 0.0)
+	// é¢„è®¾ä¸º (1.0, 0.0)
 	DIELECTRIC.assign(D_NUM + 1, std::complex<double>(1.0f, 0.0f));
 
 	double DR, DI;
@@ -157,6 +163,7 @@ void Read_Dielectric()
 	}
 
 	infile.close();
+	Console::Detail("Dielectric count", D_NUM);
 
 	//test
 	//std::cout << DIELECTRIC_FILE << " read complete. Total " << D_NUM << " dielectric constants." << std::endl;
@@ -165,27 +172,30 @@ void Read_Dielectric()
 void Read_Path() {
 	char buffer[260];
 	if (_getcwd(buffer, 260)) {
-		std::cout << "Current Path: " << buffer << std::endl;
+		Console::Detail("Workspace", buffer);
 	}
 	else {
-		std::cerr << "Fail to get Current Path" << std::endl;
+		Console::Error("Failed to get current path.");
 	}
-	// µ±Ç°Â·¾¶×Ö·û´®
+	// å½“å‰è·¯å¾„å­—ç¬¦ä¸²
 	std::string curr(buffer);
 
 
 	std::string parent = curr;
 
-	// ÕÒµ½ÉÏÒ»¼¶Ä¿Â¼£¨ÍùÉÏÍËÒ»²ã£©
-	// ´ò°üµÄÊ±ºò×¢ÊÍÕâÒ»¶Î£¬ÒòÎª´ò°üºóÂ·¾¶½á¹¹»á¸Ä±ä£¬Ö±½ÓÊ¹ÓÃµ±Ç°Â·¾¶¼´¿É
-	std::size_t pos = parent.find_last_of("\\");
-	if (pos != std::string::npos) {
-		parent = parent.substr(0, pos);
-	}
+	// æ‰¾åˆ°ä¸Šä¸€çº§ç›®å½•ï¼ˆå¾€ä¸Šé€€ä¸€å±‚ï¼‰
+	// æ‰“åŒ…çš„æ—¶å€™æ³¨é‡Šè¿™ä¸€æ®µï¼Œå› ä¸ºæ‰“åŒ…åè·¯å¾„ç»“æ„ä¼šæ”¹å˜ï¼Œç›´æ¥ä½¿ç”¨å½“å‰è·¯å¾„å³å¯
+	//std::size_t pos = parent.find_last_of("\\");
+	//if (pos != std::string::npos) {
+	//	parent = parent.substr(0, pos);
+	//}
 
 	PATH = parent + "\\Data\\";
 	INPUT_FILE = PATH + "model.msh";
 	SET_FILE = PATH + "set.txt";
 	DIELECTRIC_FILE = PATH + "DIELECTRIC.txt";
 	MAP_PATH = PATH + "output\\";
+	Console::Detail("Data root", PATH);
+	Console::Detail("Input mesh", Console::ShortPath(INPUT_FILE));
+	Console::Detail("Output dir", Console::ShortPath(MAP_PATH));
 }

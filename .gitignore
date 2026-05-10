@@ -1,0 +1,20 @@
+# Visual Studio / MSVC build output
+.vs/
+**/x64/
+**/Debug/
+**/Release/
+**/*.tlog/
+*.obj
+*.pdb
+*.idb
+*.iobj
+*.ipdb
+*.recipe
+*.ilk
+*.log
+
+# Local build executables
+*.exe
+
+# Temporary Visual Studio project clones
+**/Quasi_St.*/
