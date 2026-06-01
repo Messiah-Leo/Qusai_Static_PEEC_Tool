@@ -22,7 +22,7 @@
 - Intel oneAPI MKL。
 - PowerShell 5.1 或更高版本。
 
-三个 MKL 相关项目统一从根目录的 `BuildConfiguration.props` 读取路径。解析顺序如下：
+MKL 相关项目统一从根目录的 `BuildConfiguration.props` 读取路径。解析顺序如下：
 
 1. 显式传入的 MSBuild 属性，例如 `/p:PeecOneApiRoot=...`。
 2. 环境变量：`ONEAPI_ROOT`、`MKLROOT`、`CMPLR_ROOT`。
@@ -54,6 +54,8 @@
 3. `Post_Processing.exe`
 
 构建脚本会将三个可执行文件部署到 `Pipeline_Runtime/`。运行输入位于 `Pipeline_Runtime/Data/`。
+
+三个可执行文件的详细输入输出说明见 [`Pipeline_Runtime/README.md`](Pipeline_Runtime/README.md)。
 
 ### 构建所有模块
 
