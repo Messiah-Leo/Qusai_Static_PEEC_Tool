@@ -108,7 +108,4 @@
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
-  <ItemGroup>
-    <None Include="Directory.Build.props" />
-  </ItemGroup>
 </Project>
