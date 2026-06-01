@@ -1,5 +1,6 @@
 # Visual Studio / MSVC build output
 .vs/
+*.vcxproj.user
 **/x64/
 **/Debug/
 **/Release/
@@ -19,7 +20,17 @@
 # Temporary Visual Studio project clones
 **/Quasi_St.*/
 
+# Office temporary files
+~$*
+**/~$*
+
 # Generated pipeline outputs
 Pipeline_Runtime/Data/COMMON_DATA/
 Pipeline_Runtime/Data/Source_Plot/
 Pipeline_Runtime/Data/Field_Plot/
+
+# Generated module outputs
+Quasi_Static_Model_Extract/Data/output/
+Quasi_Static_Model_Extract/Data/Output/
+Quasi_Static_Solver/Data/Output/
+Quasi_Static_DPEC/Data/output/
