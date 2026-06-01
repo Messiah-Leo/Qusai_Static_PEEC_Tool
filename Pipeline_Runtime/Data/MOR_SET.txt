@@ -1,0 +1,11 @@
+MOR_METHOD      DPEC
+MESH_FILE       model.msh
+MAX_ERROR       -1
+MAX_FREQ        10e9
+MAX_NODE        1
+VERBOSE         1
+SAVE_OUTPUT     1
+SAVE_BIN        0
+SAVE_TXT        0
+SAVE_SP         1
+$End_Def

@@ -11,9 +11,19 @@ namespace {
 void WaitForUserBeforeExit() {
 	system("pause");
 }
+
+bool ShouldPause(int argc, char* argv[]) {
+	for (int i = 1; i < argc; ++i) {
+		if (std::string(argv[i]) == "--pause") {
+			return true;
+		}
+	}
+	return false;
+}
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+	const bool should_pause = ShouldPause(argc, argv);
 	try {
 		Console::Section("BOOT", "Quasi Static Model Extract");
 		Ini_Gaussion();
@@ -24,16 +34,16 @@ int main() {
 	}
 	catch (const std::exception& e) {
 		Console::Error("Unhandled exception: " + std::string(e.what()));
-		WaitForUserBeforeExit();
+		if (should_pause) WaitForUserBeforeExit();
 		return 1;
 	}
 	catch (...) {
 		Console::Error("Unknown unhandled exception.");
-		WaitForUserBeforeExit();
+		if (should_pause) WaitForUserBeforeExit();
 		return 2;
 	}
 
-	WaitForUserBeforeExit();
+	if (should_pause) WaitForUserBeforeExit();
 	return 0;
 }
 

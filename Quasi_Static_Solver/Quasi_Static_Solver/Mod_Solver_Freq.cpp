@@ -1,9 +1,10 @@
-﻿#include "Mod_Solver_Freq.h"
+#include "Mod_Solver_Freq.h"
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <filesystem>
 #include <limits>
 #include <mutex>
 #include <stdexcept>
@@ -35,6 +36,8 @@ struct FreqSolveWorkspace {
 
 struct FreqPointAuxData {
 	std::vector<Complex> normalized_voltage;
+	std::vector<Complex> post_current;
+	std::vector<Complex> post_voltage;
 	double error = 0.0;
 };
 
@@ -51,6 +54,81 @@ struct WorkerPlan {
 
 constexpr double kMemoryUsageLimitRatio = 0.90;
 constexpr double kWorkerSafetyMarginRatio = 1.20;
+
+int ResolvePostFrequencyPosition() {
+	if (N_FP <= 0) {
+		return -1;
+	}
+	if (POST_FREQ_INDEX <= 0) {
+		return N_FP - 1;
+	}
+	return std::min(POST_FREQ_INDEX - 1, N_FP - 1);
+}
+
+int ResolvePostPortPosition() {
+	if (N_PORT <= 0) {
+		return -1;
+	}
+	return std::clamp(POST_PORT - 1, 0, N_PORT - 1);
+}
+
+bool SavePostProcessingSource(const std::vector<FreqPointAuxData>& aux_data) {
+	if (POST_PROCESSING == 0) {
+		return true;
+	}
+
+	const int freq_pos = ResolvePostFrequencyPosition();
+	const int port_pos = ResolvePostPortPosition();
+	if (freq_pos < 0 || port_pos < 0 || freq_pos >= static_cast<int>(aux_data.size())) {
+		Console::Warn("Post-processing source export skipped: no solved frequency point or excitation port.");
+		return true;
+	}
+
+	const FreqPointAuxData& aux = aux_data[freq_pos];
+	if (aux.post_current.size() != static_cast<size_t>(C_PEC_N) ||
+		aux.post_voltage.size() != static_cast<size_t>(PEC_N)) {
+		Console::Error("Post-processing source snapshot is incomplete.");
+		return false;
+	}
+
+	const std::filesystem::path output_path = std::filesystem::path(MAP_PATH) / "Post_Source.txt";
+	std::ofstream fout(output_path);
+	if (!fout.is_open()) {
+		Console::Error("Cannot open post-processing source file for writing.");
+		return false;
+	}
+
+	fout << std::scientific << std::setprecision(std::numeric_limits<double>::max_digits10);
+	fout << "PEEC_POST_SOURCE_V1\n";
+	fout << "FREQUENCY " << CF[freq_pos] << '\n';
+	fout << "PORT " << (port_pos + 1) << '\n';
+	fout << "CURRENTS " << aux.post_current.size() << '\n';
+	for (const Complex& value : aux.post_current) {
+		fout << value.real() << ' ' << value.imag() << '\n';
+	}
+	fout << "VOLTAGES " << aux.post_voltage.size() << '\n';
+	for (const Complex& value : aux.post_voltage) {
+		fout << value.real() << ' ' << value.imag() << '\n';
+	}
+	fout << "MAGNETIC_CURRENTS " << aux.post_current.size() << '\n';
+	for (size_t i = 0; i < aux.post_current.size(); ++i) {
+		fout << "0 0\n";
+	}
+	fout << "MAGNETIC_VOLTAGES " << aux.post_voltage.size() << '\n';
+	for (size_t i = 0; i < aux.post_voltage.size(); ++i) {
+		fout << "0 0\n";
+	}
+
+	if (!fout.good()) {
+		Console::Error("Failed to write post-processing source file.");
+		return false;
+	}
+
+	Console::Info("Saved post-processing source: " + output_path.string());
+	Console::Detail("Post frequency", CF[freq_pos]);
+	Console::Detail("Post excitation port", port_pos + 1);
+	return true;
+}
 
 std::uint64_t SafeMultiply(std::uint64_t a, std::uint64_t b) {
 	if (a == 0 || b == 0) {
@@ -255,6 +333,20 @@ FreqPointAuxData Solver_Freq_Point(FreqSolveWorkspace& ws, int pos) {
 	int mathType = 0;
 
 	Solve_M(ws.cp_m, ws.source, mathType);
+
+	if (POST_PROCESSING != 0 && pos == ResolvePostFrequencyPosition()) {
+		const int port_pos = ResolvePostPortPosition();
+		if (port_pos >= 0) {
+			aux.post_voltage.resize(PEC_N);
+			aux.post_current.resize(C_PEC_N);
+			for (int i = 0; i < PEC_N; ++i) {
+				aux.post_voltage[i] = ws.source[S_BL[0] + i][port_pos];
+			}
+			for (int i = 0; i < C_PEC_N; ++i) {
+				aux.post_current[i] = ws.source[S_BL[1] + i][port_pos];
+			}
+		}
+	}
 
 	for (int i = 0; i < N_PORT; ++i) {
 		for (int j = 0; j < N_PORT; ++j) {
@@ -476,7 +568,9 @@ void Freq_Solver() {
 	Console::Section("P4", "Frequency Domain Solve");
 	const double TIME_S = Get_Time();
 
-	Read_PEEC_Model(MAP_PATH);
+	if (!Read_PEEC_Model(MAP_PATH)) {
+		throw std::runtime_error("Failed to load PEEC model from: " + MAP_PATH);
+	}
 	Inverse_M(PP, 0);
 	Ini_Data();
 	Console::Detail("Matrix size", M_SZ);
@@ -562,6 +656,9 @@ void Freq_Solver() {
 	progress_thread.join();
 
 	Rebuild_HW(aux_data);
+	if (!SavePostProcessingSource(aux_data)) {
+		throw std::runtime_error("Failed to save post-processing source snapshot.");
+	}
 
 	for (int pos = 0; pos < N_FP; ++pos) {
 		Fill_Solution(file_S, file_Z, file_Y, pos);

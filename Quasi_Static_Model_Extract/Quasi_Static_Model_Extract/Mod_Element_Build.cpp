@@ -12,6 +12,42 @@ namespace {
 constexpr double kBytesPerMegabyte = 1e6;
 constexpr int kMatrixTextPrecision = 16;
 
+bool WritePostProcessingModel() {
+	std::ofstream fout(MAP_PATH + "Post_Model.txt");
+	if (!fout.is_open()) {
+		Console::Error("Cannot open post-processing model file for writing.");
+		return false;
+	}
+
+	fout << std::scientific << std::setprecision(std::numeric_limits<double>::max_digits10);
+	fout << "PEEC_POST_MODEL_V1\n";
+	fout << "DIM " << DIM << '\n';
+	fout << "POINTS " << N_P << '\n';
+	for (int i = 0; i < N_P; ++i) {
+		fout << i << ' ' << PT[i].X[0] << ' ' << PT[i].X[1] << ' ' << PT[i].X[2] << '\n';
+	}
+
+	fout << "MESHES " << N_S << ' ' << PEC_N << ' ' << L_N << '\n';
+	for (int i = 0; i < N_S; ++i) {
+		fout << Sur_M[i].P[0] << ' ' << Sur_M[i].P[1] << ' ' << Sur_M[i].P[2] << ' '
+			<< Sur_M[i].AREA << ' '
+			<< Sur_M[i].MID_CO[0] << ' ' << Sur_M[i].MID_CO[1] << ' ' << Sur_M[i].MID_CO[2] << '\n';
+	}
+
+	fout << "CONNECTIONS " << C_PEC_N << '\n';
+	for (int i = 0; i < C_PEC_N; ++i) {
+		fout << CN[i][0] << ' ' << CN[i][1] << ' ' << CN_P[i][0] << ' ' << CN_P[i][1] << '\n';
+	}
+
+	if (!fout.good()) {
+		Console::Error("Failed to write post-processing model file.");
+		return false;
+	}
+
+	Console::Info("Saved post-processing model: " + Console::ShortPath(MAP_PATH + "Post_Model.txt"));
+	return true;
+}
+
 void TransposeMatrix3(std::array<std::array<double, 3>, 3>& matrix) {
 	for (int row = 0; row < 3; ++row) {
 		for (int col = row + 1; col < 3; ++col) {
@@ -231,6 +267,7 @@ bool Save_PEEC_Model()
 	}
 
 	if (!Write_Matrix_To_File(MAP_PATH + "B2N.txt", CN)) return false;
+	if (!WritePostProcessingModel()) return false;
 
 	std::ofstream fout(MAP_PATH + "PORT.txt");
 	fout << N_PORT << std::endl;

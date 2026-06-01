@@ -18,3 +18,8 @@
 
 # Temporary Visual Studio project clones
 **/Quasi_St.*/
+
+# Generated pipeline outputs
+Pipeline_Runtime/Data/COMMON_DATA/
+Pipeline_Runtime/Data/Source_Plot/
+Pipeline_Runtime/Data/Field_Plot/
