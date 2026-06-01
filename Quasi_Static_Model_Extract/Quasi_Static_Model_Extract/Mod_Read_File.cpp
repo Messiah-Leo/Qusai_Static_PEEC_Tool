@@ -1,5 +1,86 @@
 ﻿#include"Mod_Read_File.h"
 
+#include <windows.h>
+
+namespace {
+
+std::string PathWithTrailingSlash(std::string result) {
+	if (!result.empty() && result.back() != '\\' && result.back() != '/') {
+		result += "\\";
+	}
+	return result;
+}
+
+std::string ParentPath(std::string path) {
+	while (!path.empty() && (path.back() == '\\' || path.back() == '/')) {
+		path.pop_back();
+	}
+	const size_t pos = path.find_last_of("\\/");
+	return pos == std::string::npos ? path : path.substr(0, pos);
+}
+
+std::string JoinPath(const std::string& base, const std::string& child) {
+	if (base.empty()) {
+		return child;
+	}
+	if (base.back() == '\\' || base.back() == '/') {
+		return base + child;
+	}
+	return base + "\\" + child;
+}
+
+std::string AbsolutePath(const std::string& path) {
+	char buffer[MAX_PATH];
+	const DWORD length = GetFullPathNameA(path.c_str(), MAX_PATH, buffer, nullptr);
+	if (length == 0 || length >= MAX_PATH) {
+		return path;
+	}
+	return buffer;
+}
+
+bool DirectoryExists(const std::string& path) {
+	const DWORD attributes = GetFileAttributesA(path.c_str());
+	return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY);
+}
+
+std::string GetExecutableDir() {
+	char buffer[MAX_PATH];
+	const DWORD length = GetModuleFileNameA(nullptr, buffer, MAX_PATH);
+	if (length == 0 || length == MAX_PATH) {
+		char cwd[MAX_PATH];
+		return _getcwd(cwd, MAX_PATH) ? std::string(cwd) : std::string(".");
+	}
+	return ParentPath(buffer);
+}
+
+std::string ResolveDataRoot(const std::string& executable_dir, const std::string& current_dir) {
+	const std::string exe_parent = ParentPath(executable_dir);
+	const std::string cwd_parent = ParentPath(current_dir);
+	const std::string candidates[] = {
+		JoinPath(executable_dir, "Data"),
+		JoinPath(current_dir, "Data"),
+		JoinPath(exe_parent, "Input"),
+		JoinPath(cwd_parent, "Input"),
+		JoinPath(ParentPath(exe_parent), "Data"),
+		JoinPath(ParentPath(cwd_parent), "Data"),
+	};
+
+	for (const auto& candidate : candidates) {
+		if (DirectoryExists(candidate)) {
+			return AbsolutePath(candidate);
+		}
+	}
+
+	return AbsolutePath(JoinPath(executable_dir, "Data"));
+}
+
+void UseDefaultDielectric() {
+	DIELECTRIC.assign(128, std::complex<double>(1.0, 0.0));
+	Console::Warn("Dielectric file not found, using air dielectric defaults.");
+}
+
+} // namespace
+
 // 读取所有输入文件的总入口
 void Read_File()
 {
@@ -146,7 +227,7 @@ void Read_Dielectric()
 {
 	std::ifstream infile(DIELECTRIC_FILE);
 	if (!infile.is_open()) {
-		Console::Warn("Dielectric file not found.");
+		UseDefaultDielectric();
 		return;
 	}
 
@@ -177,24 +258,15 @@ void Read_Path() {
 	else {
 		Console::Error("Failed to get current path.");
 	}
-	// 当前路径字符串
-	std::string curr(buffer);
+	const std::string current_dir(buffer);
+	const std::string executable_dir = GetExecutableDir();
+	const std::string data_root = ResolveDataRoot(executable_dir, current_dir);
 
-
-	std::string parent = curr;
-
-	// 找到上一级目录（往上退一层）
-	// 打包的时候注释这一段，因为打包后路径结构会改变，直接使用当前路径即可
-	//std::size_t pos = parent.find_last_of("\\");
-	//if (pos != std::string::npos) {
-	//	parent = parent.substr(0, pos);
-	//}
-
-	PATH = parent + "\\Data\\";
+	PATH = PathWithTrailingSlash(data_root);
 	INPUT_FILE = PATH + "model.msh";
 	SET_FILE = PATH + "set.txt";
 	DIELECTRIC_FILE = PATH + "DIELECTRIC.txt";
-	MAP_PATH = PATH + "output\\";
+	MAP_PATH = PATH + "COMMON_DATA\\";
 	Console::Detail("Data root", PATH);
 	Console::Detail("Input mesh", Console::ShortPath(INPUT_FILE));
 	Console::Detail("Output dir", Console::ShortPath(MAP_PATH));

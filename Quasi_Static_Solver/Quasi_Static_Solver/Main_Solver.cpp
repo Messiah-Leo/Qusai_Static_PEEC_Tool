@@ -1,21 +1,30 @@
-﻿#include "Mod_Read_File.h"
+#include "Mod_Read_File.h"
 #include "Mod_Solver_Freq.h"
 #include "Mod_Solver_Time.h"
 
+#include <cstdlib>
 #include <exception>
 #include <iostream>
 
 namespace {
 
 void WaitBeforeExit() {
-	std::cout << std::endl;
-	std::cout << "[EXIT] Press Enter to exit..." << std::flush;
-	std::cin.get();
+	system("pause");
+}
+
+bool ShouldPause(int argc, char* argv[]) {
+	for (int i = 1; i < argc; ++i) {
+		if (std::string(argv[i]) == "--pause") {
+			return true;
+		}
+	}
+	return false;
 }
 
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+	const bool should_pause = ShouldPause(argc, argv);
 	try {
 		Console::Section("BOOT", "Quasi Static Solver");
 		Read_File();
@@ -31,20 +40,20 @@ int main() {
 
 		Console::Info("All stages finished successfully.");
 
-		WaitBeforeExit();
+		if (should_pause) WaitBeforeExit();
 		return 0;
 	}
 	catch (const std::exception& ex) {
 		Console::Error("Program terminated with an error.");
 		Console::Error("Reason: " + std::string(ex.what()));
 		Console::Warn("Please check input files, runtime paths, and solver settings.");
-		WaitBeforeExit();
+		if (should_pause) WaitBeforeExit();
 		return 1;
 	}
 	catch (...) {
 		Console::Error("Program terminated with an unknown error.");
 		Console::Warn("Please check input files, runtime paths, and solver settings.");
-		WaitBeforeExit();
+		if (should_pause) WaitBeforeExit();
 		return 1;
 	}
 }

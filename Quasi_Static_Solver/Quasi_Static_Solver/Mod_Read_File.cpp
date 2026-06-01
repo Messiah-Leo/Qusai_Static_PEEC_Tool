@@ -1,6 +1,87 @@
-﻿#include"Mod_Read_File.h"
+#include"Mod_Read_File.h"
 
-// 读取所有输入文件的总入口
+#include <windows.h>
+
+namespace {
+
+std::string PathWithTrailingSlash(std::string result) {
+	if (!result.empty() && result.back() != '\\' && result.back() != '/') {
+		result += "\\";
+	}
+	return result;
+}
+
+std::string ParentPath(std::string path) {
+	while (!path.empty() && (path.back() == '\\' || path.back() == '/')) {
+		path.pop_back();
+	}
+	const size_t pos = path.find_last_of("\\/");
+	return pos == std::string::npos ? path : path.substr(0, pos);
+}
+
+std::string JoinPath(const std::string& base, const std::string& child) {
+	if (base.empty()) {
+		return child;
+	}
+	if (base.back() == '\\' || base.back() == '/') {
+		return base + child;
+	}
+	return base + "\\" + child;
+}
+
+std::string AbsolutePath(const std::string& path) {
+	char buffer[MAX_PATH];
+	const DWORD length = GetFullPathNameA(path.c_str(), MAX_PATH, buffer, nullptr);
+	if (length == 0 || length >= MAX_PATH) {
+		return path;
+	}
+	return buffer;
+}
+
+bool DirectoryExists(const std::string& path) {
+	const DWORD attributes = GetFileAttributesA(path.c_str());
+	return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY);
+}
+
+std::string GetExecutableDir() {
+	char buffer[MAX_PATH];
+	const DWORD length = GetModuleFileNameA(nullptr, buffer, MAX_PATH);
+	if (length == 0 || length == MAX_PATH) {
+		char cwd[MAX_PATH];
+		return _getcwd(cwd, MAX_PATH) ? std::string(cwd) : std::string(".");
+	}
+	return ParentPath(buffer);
+}
+
+std::string ResolveDataRoot(const std::string& executable_dir, const std::string& current_dir) {
+	const std::string exe_parent = ParentPath(executable_dir);
+	const std::string cwd_parent = ParentPath(current_dir);
+	const std::string candidates[] = {
+		JoinPath(executable_dir, "Data"),
+		JoinPath(current_dir, "Data"),
+		JoinPath(exe_parent, "Input"),
+		JoinPath(cwd_parent, "Input"),
+		JoinPath(ParentPath(exe_parent), "Data"),
+		JoinPath(ParentPath(cwd_parent), "Data"),
+	};
+
+	for (const auto& candidate : candidates) {
+		if (DirectoryExists(candidate)) {
+			return AbsolutePath(candidate);
+		}
+	}
+
+	return AbsolutePath(JoinPath(executable_dir, "Data"));
+}
+
+void UseDefaultDielectric() {
+	DIELECTRIC.assign(128, std::complex<double>(1.0, 0.0));
+	Console::Warn("Dielectric file not found, using air dielectric defaults.");
+}
+
+} // namespace
+
+
 void Read_File()
 {
 	int TIME_S, TIME_E;
@@ -14,7 +95,7 @@ void Read_File()
 	Time_Diff(TIME_S, TIME_E);
 }
 
-//// 读取网格文件
+
 //void Read_Mesh()
 //{
 //	int i, j, k;
@@ -32,12 +113,12 @@ void Read_File()
 //			std::getline(fin, line);
 //			std::istringstream iss(line);
 //			iss >> VERSION >> UN_1 >> UN_2;
-//			// 仅支持Gmsh版本2.2
+
 //			if (VERSION != 2.2) {
 //				fin.close();
 //				throw std::runtime_error("Unsupported Gmsh version in mesh file. Only version 2.2 is supported.");
 //			}
-//			// 跳过 $EndMeshFormat 行
+
 //			std::getline(fin, line);
 //		}
 //		else if (line.find("$Nodes") != std::string::npos) {
@@ -49,10 +130,10 @@ void Read_File()
 //				std::getline(fin, line);
 //				std::istringstream iss(line);
 //				iss >> PT[i].number >> PT[i].X[0] >> PT[i].X[1] >> PT[i].X[2];
-//				PT[i].X = V_Div(DIM, PT[i].X); // 单位转换可在此处进行
-//				PT[i].number--; // 转换为0-based索引
+
+
 //			}
-//			// 跳过 $EndNodes 行
+
 //			std::getline(fin, line);
 //		}
 //		else if (line.find("$Elements") != std::string::npos) {
@@ -67,10 +148,10 @@ void Read_File()
 //				int len = TYP_LENGTH[T_MS[i].TYP];
 //				for (j = 0; j < len; ++j) {
 //					iss >> T_MS[i].P[j];
-//					T_MS[i].P[j]--; // 转换为0-based索引
+
 //				}
 //			}
-//			// 核对读取到的最后一行是否为"$EndElements"
+
 //			std::getline(fin, line);
 //			if (line != "$EndElements") {
 //				fin.close();
@@ -84,7 +165,7 @@ void Read_File()
 //	//std::cout << "Mesh reading complete. Total " << N_P << " points and " << N_S << " elements." << std::endl;
 //}
 
-// 读取设置文件并设置全局参数
+
 void Read_Setting()
 {
 	std::ifstream fin(SET_FILE);
@@ -121,7 +202,16 @@ void Read_Setting()
 		else if (temp_char == "DIM") {
 			DIM = set;
 		}
-		// 其他case可按需添加
+		else if (temp_char == "POST_PROCESSING") {
+			POST_PROCESSING = (set != 0.0L) ? 1 : 0;
+		}
+		else if (temp_char == "POST_FREQ_INDEX") {
+			POST_FREQ_INDEX = static_cast<int>(set);
+		}
+		else if (temp_char == "POST_PORT") {
+			POST_PORT = static_cast<int>(set);
+		}
+
 	}
 	fin.close();
 	LAMDA_E = 0.6 * 3.0e8 / 15e8;
@@ -129,23 +219,24 @@ void Read_Setting()
 	Console::Detail("Frequency start", static_cast<double>(FS));
 	Console::Detail("Frequency end", static_cast<double>(FE));
 	Console::Detail("Dimension scale", static_cast<double>(DIM));
+	Console::Detail("Export post source", POST_PROCESSING ? "yes" : "no");
 	//test
 	//std::cout << "SETTING file read complete." << std::endl;	
 }
 
-// 读取介电常数文件并设置全局参数
+
 void Read_Dielectric()
 {
 	std::ifstream infile(DIELECTRIC_FILE);
 	if (!infile.is_open()) {
-		Console::Warn("Dielectric file not found.");
+		UseDefaultDielectric();
 		return;
 	}
 
 	int D_NUM;
 	infile >> D_NUM;
 
-	// 预设为 (1.0, 0.0)
+
 	DIELECTRIC.assign(D_NUM + 1, std::complex<double>(1.0f, 0.0f));
 
 	double DR, DI;
@@ -169,23 +260,15 @@ void Read_Path() {
 	else {
 		throw std::runtime_error("Failed to get current working directory.");
 	}
-	// 当前路径字符串
-	std::string curr(buffer);
+	const std::string current_dir(buffer);
+	const std::string executable_dir = GetExecutableDir();
+	const std::string data_root = ResolveDataRoot(executable_dir, current_dir);
 
-
-	std::string parent = curr;
-	// 找到上一级目录（往上退一层）
-	// 打包时注释这一段
-	//std::size_t pos = parent.find_last_of("\\");
-	//if (pos != std::string::npos) {
-	//	parent = parent.substr(0, pos);
-	//}
-
-	PATH = parent + "\\Data\\";
+	PATH = PathWithTrailingSlash(data_root);
 	INPUT_FILE = PATH + "model.msh";
 	SET_FILE = PATH + "set.txt";
 	DIELECTRIC_FILE = PATH + "DIELECTRIC.txt";
-	MAP_PATH = PATH + "output\\";
+	MAP_PATH = PATH + "COMMON_DATA\\";
 	SOURCE_PATH = PATH;
 	Console::Detail("Data root", PATH);
 	//Console::Detail("Model dir", Console::ShortPath(MAP_PATH));

@@ -1,0 +1,21 @@
+Solver_SET 	0
+FS              1e9
+FE 	        10e9
+N_FP 	        100
+DIM	        1e3
+ER       	1
+SAVE_BIN        1
+SAVE_TXT        0
+SAVE_SP         0
+POST_PROCESSING 1
+POST_FREQ_INDEX -1
+POST_PORT       2
+POST_PLOT_J     1
+POST_PLOT_QE    1
+POST_PLOT_VE    1
+POST_PLOT_M     0
+POST_PLOT_QM    0
+POST_PLOT_VM    0
+POST_FIELD      0
+POST_FIELD_ER   1
+$End_Def
